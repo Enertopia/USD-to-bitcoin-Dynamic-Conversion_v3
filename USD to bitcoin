@@ -1,85 +1,71 @@
-# Copyright Emiliano German Solazzi Griminger 2023
+# Copyright 2023 Emiliano German Solazzi Griminger
 
+from flask import Flask, request, jsonify, make_response
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from wtforms import ValidationError
+import bleach
 import logging
-from flask import Flask, request, jsonify
 
 app = Flask(__name__)
+limiter = Limiter(app, key_func=get_remote_address)
+limiter.limit("100/minute") 
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# API key for authentication 
+API_KEY = 'secret-api-key' 
 
-# Placeholder for a bank account balance (in fiat)
-BANKACCOUNTBALANCE = 100000  # Example starting balance: $100,000
+@app.before_request
+def limit_remote_addr():
+    if request.method != 'GET':
+        limiter.check()
+        
+@app.before_request
+def validate_api_key():
+    if request.args.get('api_key') != API_KEY:
+        return jsonify({"error": "Invalid API key"}), 401
+        
+def sanitize_input(data):
+    data['amount'] = bleach.clean(data.get('amount')) 
+    data['percentage'] = bleach.clean(data.get('percentage'))
+    return data
 
-# Placeholder for a Bitcoin wallet balance
-WALLET_BALANCE = 0  # Example starting balance: 0 BTC
-
-# Constants
-CONVERSION_RATE = 0.000020  # Example conversion rate: 1 fiat = 0.000020 BTC
-DEFAULT_PERCENTAGE = 0.05
-merchantconversionpercentage = DEFAULT_PERCENTAGE
-
-def validate_input_data(data):
-    """
-    Validate and extract input data.
-    Args:
-        data (dict): JSON payload with 'amountfiat' and 'conversionpercentage'.
-    Returns:
-        Tuple[float, float]: Amount in fiat and conversion percentage.
-    Raises:
-        ValueError: If input is invalid.
-    """
+def validate_input(data):
+    if 'amount' not in data:
+        raise ValidationError("Missing amount parameter")
     try:
-        amountfiat = float(data.get('amountfiat'))
-        conversionpercentage = float(data.get('conversionpercentage', DEFAULT_PERCENTAGE))
-        if not 0 <= conversionpercentage <= 1:
-            raise ValueError("Conversion percentage must be between 0 and 1.")
-        return amountfiat, conversionpercentage
-    except (ValueError, TypeError) as e:
-        raise ValueError(f"Invalid input: {e}")
-
-def convert_fiat_to_bitcoin(amountfiat, conversion_percentage):
-    """
-    Converts a fiat currency amount to Bitcoin.
-    Args:
-        amount_fiat (float): Amount in fiat currency.
-        conversion_percentage (float): Conversion percentage.
-    Returns:
-        dict: Conversion details.
-    """
-    totalamounttoconvert = amountfiat * conversion_percentage
-    global BANKACCOUNTBALANCE
-    BANKACCOUNTBALANCE -= totalamounttoconvert
-    amounttowallet = totalamounttoconvert * CONVERSION_RATE
-    amounttobankaccount = amountfiat - totalamounttoconvert
-    global WALLET_BALANCE
-    WALLET_BALANCE += amounttowallet
-    conversion_details = {
-        'amountfiat': amountfiat,
-        'amounttowallet': amounttowallet,
-        'amounttobankaccount': amounttobankaccount,
-        'conversionrate': CONVERSION_RATE,
-        'merchantconversionpercentage': conversion_percentage,
-        'bankaccountbalance': BANKACCOUNTBALANCE,
-        'walletbalance': WALLET_BALANCE
-    }
-    return conversion_details
-
-@app.route('/convert', methods=['POST'])
-def convert_to_bitcoin():
-    """
-    Converts a fiat currency amount to Bitcoin.
-    Expects a JSON payload with 'amountfiat' and 'conversionpercentage'.
-    """
+        amount = float(data['amount'])
+        if amount < 0:
+            raise ValidationError("Invalid amount")
+    except ValueError:
+        raise ValidationError("Invalid amount")
+        
+    if 'percentage' not in data:
+        data['percentage'] = 0.05
     try:
-        data = request.get_json()
-        amountfiat, conversionpercentage = validate_input_data(data)
-        conversion_details = convert_fiat_to_bitcoin(amountfiat, conversionpercentage)
-        return jsonify(conversion_details), 200
-    except ValueError as e:
-        logging.error(f"Invalid input: {e}")
-        return jsonify({'error': str(e)}), 400
+        percentage = float(data['percentage'])
+        if not 0 <= percentage <= 1:
+            raise ValidationError("Invalid percentage")
+    except ValueError:
+        raise ValidationError("Invalid percentage")
+        
+
+@app.route("/convert")
+def convert():
+    data = sanitize_input(request.args) 
+    validate_input(data)
+    
+    # Conversion logic
+    
+    response = jsonify({"result": "success"})
+    return response, 200
+
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block' 
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+
+    return response
 
 if __name__ == '__main__':
-    # Use a production-ready web server like Gunicorn or uWSGI for deployment
-    app.run(host='0.0.0.0', port=3000, debug=True)
+    app.run(debug=True, ssl_context='adhoc')

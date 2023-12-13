@@ -1,0 +1,49 @@
+# app.py
+
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+# Constants
+CONVERSION_RATE = 0.000020  
+
+# Wallets
+exchange_wallet = 0
+affiliate_wallet = 0
+
+@app.route('/convert', methods=['POST'])
+def convert():
+    data = request.get_json()
+    amount = data['amount']
+
+    # Conversion logic
+    converted = amount * CONVERSION_RATE 
+
+    # Get fees
+    exchange_fee, affiliate_fee = get_fees(amount)
+
+    # Distribute
+    customer, exchange, affiliate = distribute(converted, exchange_fee, affiliate_fee)
+
+    return jsonify({
+        "converted": converted,
+        "customer": customer, 
+        "exchange": exchange,
+        "affiliate": affiliate
+    })
+
+def get_fees(amount):
+    exchange_fee = amount * 0.01
+    affiliate_fee = amount * 0.005
+    
+    return exchange_fee, affiliate_fee
+
+def distribute(converted, exchange_fee, affiliate_fee):
+    customer = converted - exchange_fee  
+    exchange_wallet += exchange_fee   
+    affiliate_wallet += affiliate_fee
+    
+    return customer, exchange_wallet, affiliate_wallet
+
+if __name__ == '__main__':
+    app.run() 

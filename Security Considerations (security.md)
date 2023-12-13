@@ -2,31 +2,45 @@
 
 This document outlines security considerations for the Bitcoin Converter API.
 
-## Authentication and Authorization
+## Authentication
 
-- Describe how authentication and authorization are handled in your API.
-- Explain the use of API keys, tokens, or any other authentication mechanisms.
+- API keys are used to authenticate requests. Keys should be passed in request headers.
+- API keys have different access levels restricting access to endpoints. Access is granted based on roles.
 
-## Input Validation
+See [Authentication Docs](auth.md) for more details.
 
-- Discuss the importance of input validation to prevent common security vulnerabilities like SQL injection or Cross-Site Scripting (XSS).
-- Mention how user input is sanitized and validated before processing.
+## Authorization
+
+- Access control is enforced based on user roles and permissions.
+- The principle of least privilege is followed.
 
 ## Rate Limiting
 
-- Implement rate limiting to protect against brute force attacks or abuse.
-- Define the rate-limiting policies and mechanisms in place.
+- Rate limiting prevents abuse and denial of service attacks.
+- Requests are limited to 100 per minute per API key.
+
+## Input Validation
+
+- User input is validated and sanitized before processing.
+- This prevents common attacks like XSS, SQLi, etc.
 
 ## Data Encryption
 
-- Describe how sensitive data is encrypted, both at rest and in transit.
-- Specify the encryption algorithms and protocols used.
+- Sensitive data is encrypted in transit and at rest.
+- AES 256 encryption is used for data encryption. 
 
-## Error Handling
+## Secure Error Handling
 
-- Implement secure error handling to avoid exposing sensitive information.
-- Provide guidelines on logging errors for internal use without leaking details to clients.
+- Errors are handled securely without exposing details.
+- Errors are logged for internal tracking but not revealed to clients.
 
-## Reporting Security Issues
+## Security Monitoring
 
-If you discover a security issue, please report it to [security@example.com](mailto:security@example.com).
+- API activity is monitored for suspicious behavior. 
+- Alerts are configured for potential issues.
+
+See the [Monitoring Docs](monitoring.md) for more info.
+
+## Reporting Issues
+
+Please report security issues responsibly to [security@example.com](mailto:security@example.com)

@@ -1,0 +1,19 @@
+# Contributing to Bitcoin Converter API
+
+...
+
+## Security Considerations
+
+If you identify a security vulnerability or have suggestions for improving the security of the application, please follow these steps:
+
+1. **Reporting Security Issues:**
+   - Report security issues privately by emailing [security@example.com](mailto:security@example.com).
+   - Do not disclose security issues publicly until they have been addressed.
+
+2. **Providing Solutions:**
+   - If you can, provide a proposed solution or steps to reproduce the security issue.
+
+3. **Collaborating on Fixes:**
+   - Collaborate with maintainers to address and fix the security issue.
+
+Thank you for contributing to the security of the Bitcoin Converter API!

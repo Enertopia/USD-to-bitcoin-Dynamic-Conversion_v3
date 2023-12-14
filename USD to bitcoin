@@ -39,6 +39,11 @@ def validate_input(data):
     except ValueError:
         raise ValidationError("Invalid amount")
 
+# Placeholder for input sanitization
+def sanitize_input(data):
+    # Add your sanitization logic here if needed
+    pass
+
 @app.before_request
 def limit_remote_addr():
     if request.method != 'GET':
@@ -92,7 +97,3 @@ def convert():
 
 if __name__ == '__main__':
     app.run(debug=True)
-
-
-if __name__ == '__main__':
-    app.run(debug=True, ssl_context='adhoc')

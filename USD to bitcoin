@@ -21,7 +21,7 @@ WALLET_BALANCE = 0  # Example starting balance: 0 BTC
 
 # Constants
 CONVERSION_RATE = 0.000020  # Example conversion rate: 1 fiat = 0.000020 BTC
-MERCHANT_CONVERSION_PERCENTAGE = 0.05  # Merchant's preset conversion percentage
+DEFAULT_MERCHANT_PERCENTAGE = 0.05  # Merchant's default conversion percentage
 
 # Store API keys securely hashed
 API_KEY = generate_password_hash('secret-key')
@@ -57,23 +57,24 @@ def validate_api_key():
 @app.route("/convert", methods=['POST'])
 def convert():
     try:
-        # Simulating a customer request
-        customer_data = {
+        # Simulating a merchant request
+        merchant_data = {
             'amount': request.form.get('amount'),
+            'merchant_percentage': request.form.get('merchant_percentage', DEFAULT_MERCHANT_PERCENTAGE),
         }
 
-        # Validate and sanitize customer input
-        sanitize_input(customer_data)
-        validate_input(customer_data)
+        # Validate and sanitize merchant input
+        sanitize_input(merchant_data)
+        validate_input(merchant_data)
 
         # Calculate the amount to be converted to Bitcoin
-        amount_fiat = float(customer_data['amount'])
-        amount_to_convert = amount_fiat * MERCHANT_CONVERSION_PERCENTAGE
+        amount_fiat = float(merchant_data['amount'])
+        merchant_percentage = float(merchant_data['merchant_percentage'])
 
         # Simulate the conversion to Bitcoin
         global BANK_ACCOUNT_BALANCE
-        BANK_ACCOUNT_BALANCE -= amount_to_convert
-        amount_to_wallet = amount_to_convert * CONVERSION_RATE
+        BANK_ACCOUNT_BALANCE -= amount_fiat * merchant_percentage
+        amount_to_wallet = amount_fiat * merchant_percentage * CONVERSION_RATE
         global WALLET_BALANCE
         WALLET_BALANCE += amount_to_wallet
 
@@ -81,15 +82,15 @@ def convert():
         conversion_result = {
             'result': 'success',
             'amount_fiat': amount_fiat,
-            'amount_to_convert': amount_to_convert,
+            'amount_to_convert': amount_fiat * merchant_percentage,
             'amount_to_wallet': amount_to_wallet,
             'conversion_rate': CONVERSION_RATE,
-            'merchant_conversion_percentage': MERCHANT_CONVERSION_PERCENTAGE,
+            'merchant_conversion_percentage': merchant_percentage,
             'bank_account_balance': BANK_ACCOUNT_BALANCE,
             'wallet_balance': WALLET_BALANCE
         }
 
-        # Return the result to the customer
+        # Return the result to the merchant
         return jsonify(conversion_result), 200
 
     except (ValidationError, ValueError) as e:

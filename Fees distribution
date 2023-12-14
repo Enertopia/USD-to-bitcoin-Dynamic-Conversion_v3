@@ -1,49 +1,99 @@
 # app.py
 
 from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
-# Constants
-CONVERSION_RATE = 0.000020  
+# Configure Flask app to use SQLite database
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///wallets.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
-# Wallets
-exchange_wallet = 0
-affiliate_wallet = 0
+# Model for CompanyWallet
+class CompanyWallet(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    bitcoin_balance = db.Column(db.Float, default=0.0)
+    fiat_balance = db.Column(db.Float, default=0.0)
+
+# Model for MerchantWallet
+class MerchantWallet(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    bitcoin_balance = db.Column(db.Float, default=0.0)
+    fiat_balance = db.Column(db.Float, default=0.0)
+
+# Default percentages
+DEFAULT_MERCHANT_PERCENTAGE = 0.05
+DEFAULT_COMPANY_BITCOIN_PERCENTAGE = 0.0035  # 0.35%
 
 @app.route('/convert', methods=['POST'])
 def convert():
-    data = request.get_json()
-    amount = data['amount']
+    try:
+        data = request.get_json()
+        amount = float(data['amount'])
 
-    # Conversion logic
-    converted = amount * CONVERSION_RATE 
+        # Adjustable percentage for the merchant with a default of 5%
+        merchant_percentage = float(data.get('merchant_percentage', DEFAULT_MERCHANT_PERCENTAGE))
 
-    # Get fees
-    exchange_fee, affiliate_fee = get_fees(amount)
+        # Conversion logic
+        converted = amount * CONVERSION_RATE
 
-    # Distribute
-    customer, exchange, affiliate = distribute(converted, exchange_fee, affiliate_fee)
+        # Get fees
+        exchange_fee, affiliate_fee = get_fees(amount)
 
-    return jsonify({
-        "converted": converted,
-        "customer": customer, 
-        "exchange": exchange,
-        "affiliate": affiliate
-    })
+        # Distribute to company and merchant
+        company_bitcoin, company_fiat, merchant_bitcoin, merchant_fiat = distribute(
+            converted, exchange_fee, affiliate_fee, merchant_percentage)
+
+        # Save wallet balances to the database
+        db.session.commit()
+
+        return jsonify({
+            "converted": converted,
+            "company_bitcoin_wallet": company_bitcoin,
+            "company_fiat_wallet": company_fiat,
+            "merchant_bitcoin_wallet": merchant_bitcoin,
+            "merchant_fiat_wallet": merchant_fiat
+        }), 200
+
+    except (ValueError, KeyError) as e:
+        return jsonify({"error": f"Invalid input: {e}"}), 400
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 def get_fees(amount):
     exchange_fee = amount * 0.01
     affiliate_fee = amount * 0.005
-    
     return exchange_fee, affiliate_fee
 
-def distribute(converted, exchange_fee, affiliate_fee):
-    customer = converted - exchange_fee  
-    exchange_wallet += exchange_fee   
-    affiliate_wallet += affiliate_fee
-    
-    return customer, exchange_wallet, affiliate_wallet
+def distribute(converted, exchange_fee, affiliate_fee, merchant_percentage):
+    # Retrieve or create company wallet record
+    company_wallet = CompanyWallet.query.first()
+    if not company_wallet:
+        company_wallet = CompanyWallet()
+        db.session.add(company_wallet)
+
+    # Retrieve or create merchant wallet record
+    merchant_wallet = MerchantWallet.query.first()
+    if not merchant_wallet:
+        merchant_wallet = MerchantWallet()
+        db.session.add(merchant_wallet)
+
+    # Distribute to company and merchant
+    company_wallet.bitcoin_balance += converted * DEFAULT_COMPANY_BITCOIN_PERCENTAGE
+    company_wallet.fiat_balance += affiliate_fee * (1 - merchant_percentage)
+
+    merchant_wallet.bitcoin_balance += converted * merchant_percentage
+    merchant_wallet.fiat_balance += affiliate_fee * merchant_percentage
+
+    return (
+        company_wallet.bitcoin_balance,
+        company_wallet.fiat_balance,
+        merchant_wallet.bitcoin_balance,
+        merchant_wallet.fiat_balance
+    )
 
 if __name__ == '__main__':
-    app.run() 
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)

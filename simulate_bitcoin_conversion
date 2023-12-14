@@ -1,0 +1,29 @@
+from models import Balance
+from flask_jwt_extended import create_access_token
+from datetime import timedelta
+
+def convert_to_bitcoin(amount_fiat, merchant_percentage):
+    # Simulate the conversion to Bitcoin
+    balance = Balance.query.first()
+    balance.account_balance -= amount_fiat * merchant_percentage
+    amount_to_wallet = amount_fiat * merchant_percentage * 0.000020
+    balance.wallet_balance += amount_to_wallet
+    balance.total_bitcoin_converted += amount_to_wallet
+    db.session.commit()
+
+    # Create a JWT token for the response (as an example)
+    access_token = create_access_token(identity=str(balance.id))
+
+    # Prepare and return a dictionary containing conversion results
+    return {
+        'result': 'success',
+        'amount_fiat': amount_fiat,
+        'amount_to_convert': amount_fiat * merchant_percentage,
+        'amount_to_wallet': amount_to_wallet,
+        'conversion_rate': 0.000020,
+        'merchant_conversion_percentage': merchant_percentage,
+        'bank_account_balance': balance.account_balance,
+        'wallet_balance': balance.wallet_balance,
+        'total_bitcoin_converted': balance.total_bitcoin_converted,
+        'access_token': access_token
+    }

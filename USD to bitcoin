@@ -1,27 +1,30 @@
-# Copyright Emiliano German Solazzi Griminger 2023
+# Importing required libraries
 import logging
 from flask import Flask, request, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from wtforms import ValidationError
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_sqlalchemy import SQLAlchemy
 
+# Initialize Flask app and configure database
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///balances.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+# Initialize rate limiter
 limiter = Limiter(app, key_func=get_remote_address)
 limiter.limit("100/minute")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Placeholder for a bank account balance (in fiat)
-BANK_ACCOUNT_BALANCE = 100000  # Example starting balance: $100,000
-
-# Placeholder for a Bitcoin wallet balance
-WALLET_BALANCE = 0  # Example starting balance: 0 BTC
-
-# Constants
-CONVERSION_RATE = 0.000020  # Example conversion rate: 1 fiat = 0.000020 BTC
-DEFAULT_MERCHANT_PERCENTAGE = 0.05  # Merchant's default conversion percentage
+# Define Balance model for database
+class Balance(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    account_balance = db.Column(db.Float, default=100000)
+    wallet_balance = db.Column(db.Float, default=0)
 
 # Store API keys securely hashed
 API_KEY = generate_password_hash('secret-key')
@@ -60,7 +63,7 @@ def convert():
         # Simulating a merchant request
         merchant_data = {
             'amount': request.form.get('amount'),
-            'merchant_percentage': request.form.get('merchant_percentage', DEFAULT_MERCHANT_PERCENTAGE),
+            'merchant_percentage': request.form.get('merchant_percentage', 0.05),
         }
 
         # Validate and sanitize merchant input
@@ -72,11 +75,11 @@ def convert():
         merchant_percentage = float(merchant_data['merchant_percentage'])
 
         # Simulate the conversion to Bitcoin
-        global BANK_ACCOUNT_BALANCE
-        BANK_ACCOUNT_BALANCE -= amount_fiat * merchant_percentage
-        amount_to_wallet = amount_fiat * merchant_percentage * CONVERSION_RATE
-        global WALLET_BALANCE
-        WALLET_BALANCE += amount_to_wallet
+        balance = Balance.query.first()
+        balance.account_balance -= amount_fiat * merchant_percentage
+        amount_to_wallet = amount_fiat * merchant_percentage * 0.000020
+        balance.wallet_balance += amount_to_wallet
+        db.session.commit()
 
         # For illustration purposes, let's assume a successful conversion
         conversion_result = {
@@ -84,10 +87,10 @@ def convert():
             'amount_fiat': amount_fiat,
             'amount_to_convert': amount_fiat * merchant_percentage,
             'amount_to_wallet': amount_to_wallet,
-            'conversion_rate': CONVERSION_RATE,
+            'conversion_rate': 0.000020,
             'merchant_conversion_percentage': merchant_percentage,
-            'bank_account_balance': BANK_ACCOUNT_BALANCE,
-            'wallet_balance': WALLET_BALANCE
+            'bank_account_balance': balance.account_balance,
+            'wallet_balance': balance.wallet_balance
         }
 
         # Return the result to the merchant
@@ -97,4 +100,14 @@ def convert():
         return jsonify({"error": str(e)}), 400
 
 if __name__ == '__main__':
+    # Create database tables
+    db.create_all()
+
+    # Check if the Balance table is empty, and initialize with default values if needed
+    if not Balance.query.first():
+        default_balance = Balance()
+        db.session.add(default_balance)
+        db.session.commit()
+
+    # Run the application
     app.run(debug=True)

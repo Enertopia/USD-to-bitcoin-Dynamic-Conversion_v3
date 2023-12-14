@@ -6,12 +6,16 @@ from flask_limiter.util import get_remote_address
 from wtforms import ValidationError
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required
 
-# Initialize Flask app and configure database
+# Initialize Flask app and configure extensions
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///balances.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://username:password@localhost/db_name'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JWT_SECRET_KEY'] = 'super-secret-key'
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
 db = SQLAlchemy(app)
+jwt = JWTManager(app)
 
 # Initialize rate limiter
 limiter = Limiter(app, key_func=get_remote_address)
@@ -20,17 +24,17 @@ limiter.limit("100/minute")
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Define Balance model for database
+# Define Balance model for the database
 class Balance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     account_balance = db.Column(db.Float, default=100000)
     wallet_balance = db.Column(db.Float, default=0)
 
 # Store API keys securely hashed
-API_KEY = generate_password_hash('secret-key')
+API_KEY = generate_password_hash('super-secret-key')
 
-def validate_api_key(key):
-    return check_password_hash(API_KEY, key)
+def validate_api_key(api_key):
+    return check_password_hash(API_KEY, api_key)
 
 def validate_input(data):
     if 'amount' not in data:
@@ -52,12 +56,8 @@ def limit_remote_addr():
     if request.method != 'GET':
         limiter.check()
 
-@app.before_request
-def validate_api_key():
-    if request.args.get('api_key') != API_KEY:
-        return jsonify({"error": "Invalid API key"}), 401
-
-@app.route("/convert", methods=['POST'])
+@app.route("/api/v1/convert", methods=['POST'])
+@jwt_required()
 def convert():
     try:
         # Simulating a merchant request
@@ -81,6 +81,9 @@ def convert():
         balance.wallet_balance += amount_to_wallet
         db.session.commit()
 
+        # Create a JWT token for the response (as an example)
+        access_token = create_access_token(identity=str(balance.id))
+
         # For illustration purposes, let's assume a successful conversion
         conversion_result = {
             'result': 'success',
@@ -90,13 +93,16 @@ def convert():
             'conversion_rate': 0.000020,
             'merchant_conversion_percentage': merchant_percentage,
             'bank_account_balance': balance.account_balance,
-            'wallet_balance': balance.wallet_balance
+            'wallet_balance': balance.wallet_balance,
+            'access_token': access_token
         }
 
         # Return the result to the merchant
         return jsonify(conversion_result), 200
 
     except (ValidationError, ValueError) as e:
+        # Log detailed error information
+        logging.error(f"Conversion error: {str(e)}")
         return jsonify({"error": str(e)}), 400
 
 if __name__ == '__main__':

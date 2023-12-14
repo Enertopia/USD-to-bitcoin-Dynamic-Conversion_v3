@@ -31,6 +31,7 @@ class Balance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     account_balance = db.Column(db.Float, default=100000)
     wallet_balance = db.Column(db.Float, default=0)
+    total_bitcoin_converted = db.Column(db.Float, default=0.0)  # Add this field
 
 # Store API keys securely hashed
 API_KEY = generate_password_hash(os.getenv('API_KEY'))  # Use environment variable for API key
@@ -81,49 +82,5 @@ def convert():
         balance.account_balance -= amount_fiat * merchant_percentage
         amount_to_wallet = amount_fiat * merchant_percentage * 0.000020
         balance.wallet_balance += amount_to_wallet
+        balance.total_bitcoin_converted += amount_to_wallet  # Update total Bitcoin converted
         db.session.commit()
-
-        # Create a JWT token for the response (as an example)
-        access_token = create_access_token(identity=str(balance.id))
-
-        # For illustration purposes, let's assume a successful conversion
-        conversion_result = {
-            'result': 'success',
-            'amount_fiat': amount_fiat,
-            'amount_to_convert': amount_fiat * merchant_percentage,
-            'amount_to_wallet': amount_to_wallet,
-            'conversion_rate': 0.000020,
-            'merchant_conversion_percentage': merchant_percentage,
-            'bank_account_balance': balance.account_balance,
-            'wallet_balance': balance.wallet_balance,
-            'access_token': access_token
-        }
-
-        # Return the result to the merchant
-        return jsonify(conversion_result), 200
-
-    except ValidationError as e:
-        # Log detailed validation error information
-        logging.error(f"Validation error: {str(e)}")
-        return jsonify({"error": str(e)}), 422
-    except ValueError as e:
-        # Log detailed value error information
-        logging.error(f"Value error: {str(e)}")
-        return jsonify({"error": str(e)}), 422
-    except Exception as e:
-        # Log unexpected error information
-        logging.error(f"Unexpected error: {str(e)}")
-        return jsonify({"error": "An unexpected error occurred"}), 500
-
-if __name__ == '__main__':
-    # Create database tables
-    db.create_all()
-
-    # Check if the Balance table is empty, and initialize with default values if needed
-    if not Balance.query.first():
-        default_balance = Balance()
-        db.session.add(default_balance)
-        db.session.commit()
-
-    # Run the application
-    app.run(debug=True)

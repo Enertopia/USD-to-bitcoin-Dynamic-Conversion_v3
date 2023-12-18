@@ -1,0 +1,45 @@
+# payment.py
+
+from decimal import Decimal
+
+class SplitPayment:
+
+    def __init__(self, order_id, amount):
+        self.order_id = order_id
+        self.amount = Decimal(amount)
+
+    def pay(self, bank_account, bitcoin_address, btc_percentage):
+        
+        btc_amount = self.amount * (btc_percentage / 100)
+        fiat_amount = self.amount - btc_amount
+
+        # Perform payments
+        fiat_tx = self.fiat_transfer(fiat_amount, bank_account)
+        btc_tx = self.lightning_pay(btc_amount, bitcoin_address)  
+
+        # Check both succeeded
+        if fiat_tx.succeeded and btc_tx.succeeded:
+            return True
+        
+        # Handle failures
+        self.handle_failed_payment(fiat_tx, btc_tx)
+        return False
+
+    def fiat_transfer(self, amount, account):
+        print(f"Transferring {amount} via ACH") 
+        # Call ACH API
+        return FiatTransferResponse()
+
+    def lightning_pay(self, amount, payee):
+        print(f"Paying {amount} satoshis via Lightning")
+        # Call LND API
+        return LightningPaymentResponse()
+
+    def handle_failed_payment(self, fiat, btc):
+        # Refunds, retries, notifications
+        pass
+
+# usage
+
+payment = SplitPayment(order_123, 199.99)
+payment.pay(bank_acct, ln_invoice, 60)

@@ -1,0 +1,104 @@
+# app.py
+
+from flask import Flask 
+from flask_restful import Api
+from flask_sqlalchemy import SQLAlchemy
+from flask_marshmallow import Marshmallow
+from flask_oauthlib.provider import OAuth2Provider
+from flask_caching import Cache
+from flask_limiter import Limiter
+from opentracing.ext import tags
+from opentracing.propagation import Format
+
+# Instrumentation
+import opentracing
+from jaeger_client import Config
+
+config = Config(config={ 
+  'sampler': {
+    'type': 'const',
+    'param': 1,
+  }
+})
+tracer = config.initialize_tracer() 
+
+# DB and marshmallow
+db = SQLAlchemy()
+ma = Marshmallow()
+
+# OAuth 
+oauth = OAuth2Provider()
+
+# Caching and rate limiting
+cache = Cache() 
+limiter = Limiter()
+
+def create_app():
+
+  app = Flask(__name__)
+  
+  # DB and marshmallow
+  db.init_app(app)
+  ma.init_app(app)
+
+  # OAuth 
+  oauth.init_app(app)
+
+  # Caching and rate limiting
+  cache.init_app(app)
+  limiter.init_app(app)
+
+  # Blueprints
+  from user import user_api
+  from wallet import wallet_api
+  from invoice import invoice_api
+  from payment import payment_api
+
+  app.register_blueprint(user_api)
+  app.register_blueprint(wallet_api)
+  app.register_blueprint(invoice_api)
+  app.register_blueprint(payment_api)
+
+  return app
+
+# User management and OAuth
+
+@oauth.clientgetter
+def get_client(client_id):
+  return Client.query.filter_by(client_id=client_id).first() 
+
+# REST API
+
+api = Api(app)
+
+@api.representation('application/json')
+def output_json(data, code, headers=None):
+  response = make_response(json.dumps(data), code)
+  response.headers.extend(headers or {})
+  return response
+
+# OpenAPI docs
+@app.route('/spec')
+def spec():
+  swag = swagger(app)
+  swag['info']['version'] = "1.0"
+  swag['info']['title'] = "Lightning API"
+  return jsonify(swag)
+
+# Tracing
+
+@app.before_request
+def start_trace():
+  span_ctx = tracer.extract(Format.HTTP_HEADERS, request.headers)
+  span_tags = {tags.COMPONENT: 'api'}
+  span = tracer.start_span('request', child_of=span_ctx, tags=span_tags)
+  span.set_tag(tags.HTTP_METHOD, request.method)
+  span.set_tag(tags.HTTP_URL, request.path)
+  g.trace_span = span
+
+@app.after_request
+def end_trace(response):
+  if hasattr(g, 'trace_span'):
+    g.trace_span.set_tag(tags.HTTP_STATUS_CODE, response.status_code)
+    g.trace_span.finish()
+  return response

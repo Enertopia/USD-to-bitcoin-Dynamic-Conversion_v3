@@ -1,3 +1,5 @@
+# Coded by Emiliano Solazzi Griminger 2023
+
 import logging
 
 # Configure logging

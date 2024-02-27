@@ -1,4 +1,4 @@
-# Coded by Emiliano Solazzi Griminger 2023
+# Coded by Emiliano Solazzi Griminger 2023. Coinblend
 
 import logging
 

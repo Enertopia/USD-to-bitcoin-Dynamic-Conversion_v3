@@ -1,3 +1,5 @@
+# Coded by Emiliano German Solazzi Griminger, 2023. Coinblend.
+
 # app.py
 
 from flask import Flask, request, jsonify

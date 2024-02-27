@@ -1,45 +1,113 @@
-# payment.py
+# lightning.py
 
-from decimal import Decimal
+import os
+import asyncio
+from cryptography import ECDSA
+from pubsub import PubSub
+from blockchain import BlockchainClient
 
-class SplitPayment:
+class LightningNode:
 
-    def __init__(self, order_id, amount):
-        self.order_id = order_id
-        self.amount = Decimal(amount)
+    def __init__(self, blockchain: BlockchainClient):
+        self._node_id = os.urandom(32)  # Make node_id private
+        self._blockchain = blockchain
+        self._router = Router()
+        self._gossip = GossipProtocol()
+        self._peers = {}
+        self._channels = {}
+        self._pending_htlcs = {}
 
-    def pay(self, bank_account, bitcoin_address, btc_percentage):
-        
-        btc_amount = self.amount * (btc_percentage / 100)
-        fiat_amount = self.amount - btc_amount
+    async def sync(self):
+        await self._sync_peers()
+        await self._sync_channels()
+        await self._sync_network()
 
-        # Perform payments
-        fiat_tx = self.fiat_transfer(fiat_amount, bank_account)
-        btc_tx = self.lightning_pay(btc_amount, bitcoin_address)  
-
-        # Check both succeeded
-        if fiat_tx.succeeded and btc_tx.succeeded:
-            return True
-        
-        # Handle failures
-        self.handle_failed_payment(fiat_tx, btc_tx)
-        return False
-
-    def fiat_transfer(self, amount, account):
-        print(f"Transferring {amount} via ACH") 
-        # Call ACH API
-        return FiatTransferResponse()
-
-    def lightning_pay(self, amount, payee):
-        print(f"Paying {amount} satoshis via Lightning")
-        # Call LND API
-        return LightningPaymentResponse()
-
-    def handle_failed_payment(self, fiat, btc):
-        # Refunds, retries, notifications
+    async def _sync_peers(self):
+        # Discover peers and connect
         pass
 
-# usage
+    async def _sync_channels(self):
+        # Exchange channel updates
+        pass
 
-payment = SplitPayment(order_123, 199.99)
-payment.pay(bank_acct, ln_invoice, 60)
+    async def _sync_network(self):
+        await self._gossip.propagate()
+        await self._watch_chain()
+
+    async def _watch_chain(self):
+        # Monitor blockchain for channel closes
+        pass
+
+    def make_payment(self, payment, callback):
+        route = self._router.find_route(payment.amount)
+        payment_hash = self._send_htlc(route, payment.htlc)
+
+        self._pending_htlcs[payment_hash] = (payment, callback)
+
+    def handle_htlc_settle(self, preimage):
+        payment = self._pending_htlcs.pop(preimage.payment_hash)
+        payment[1](True)  # Execute callback
+
+# lightningclient.py
+
+from lightning import LightningNode
+from wallet import Wallet
+from blockchain import BlockchainClient
+
+class LightningClient(LightningNode):
+
+    def __init__(self, wallet: Wallet, blockchain: BlockchainClient):
+        self._wallet = wallet
+        super().__init__(blockchain)
+
+    def pay_invoice(self, invoice):
+        payment = self._wallet.create_payment(invoice)
+        self.make_payment(payment, self._on_payment_complete)
+
+    def _on_payment_complete(self, error):
+        if error:
+            print("Payment failed")
+        else:
+            print("Payment completed!")
+
+    def login(self, username, password):
+        self._wallet.unlock(username, password)
+
+# explorer.py
+
+from lightning import LightningNode
+from visualization import NetworkGraph
+
+class LightningExplorer(LightningNode):
+
+    def __init__(self, graph: NetworkGraph):
+        self._graph = graph
+        super().__init__()
+
+        self._subscribe_to_updates(self._update_graph)
+
+    def _update_graph(self, update):
+        self._graph.apply_update(update)
+
+    def web_ui(self):
+        return self._graph.render_d3_force()
+
+# faucet.py
+
+from lightningclient import LightningClient
+from wallet import Wallet
+
+class Faucet(LightningClient):
+
+    def __init__(self, wallet: Wallet, blockchain: BlockchainClient):
+        super().__init__(wallet, blockchain)
+
+    def create_account(self, username):
+        account = self._wallet.create_account(username)
+        return account.seed
+
+    def fund_account(self, username, amount):
+        account = self._wallet.get_account(username)
+        address = account.get_address()
+
+        self._blockchain.send_coins(address, amount)

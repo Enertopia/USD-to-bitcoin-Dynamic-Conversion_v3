@@ -1,4 +1,4 @@
-# ... (Existing code remains unchanged)
+# Coded by Emiliano Solazzi Griminger 2023
 
 @app.route("/api/v1/convert", methods=['POST'])
 @jwt_required()

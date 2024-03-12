@@ -1,46 +1,143 @@
-Coded by Emiliano German Solazzi Griminger, 2023
-# payment.py
-
 from decimal import Decimal
+import logging
+
+class FiatPayment:
+    def __init__(self, amount, bank_account):
+        self.amount = Decimal(amount)
+        self.bank_account = bank_account
+
+    def transfer(self):
+        # Placeholder for simulating fiat transfer via ACH
+        logging.info(f"Transferring ${self.amount} via ACH to {self.bank_account}")
+        # Implement logic to transfer fiat amount
+
+class BitcoinPayment:
+    def __init__(self, amount, bitcoin_address):
+        self.amount = Decimal(amount)
+        self.bitcoin_address = bitcoin_address
+
+    def pay(self):
+        # Placeholder for simulating Bitcoin payment via Lightning Network
+        logging.info(f"Paying {self.amount} BTC via Lightning to {self.bitcoin_address}")
+        # Implement logic to make Bitcoin payment
 
 class SplitPayment:
-
-    def __init__(self, order_id, amount):
+    def __init__(self, order_id, total_amount):
         self.order_id = order_id
-        self.amount = Decimal(amount)
+        self.total_amount = Decimal(total_amount)
 
-    def pay(self, bank_account, bitcoin_address, btc_percentage):
-        
-        btc_amount = self.amount * (btc_percentage / 100)
-        fiat_amount = self.amount - btc_amount
+    def pay(self, fiat_percentage, bank_account, bitcoin_address):
+        fiat_amount = self.total_amount * (Decimal(fiat_percentage) / 100)
+        bitcoin_amount = self.total_amount - fiat_amount
 
-        # Perform payments
-        fiat_tx = self.fiat_transfer(fiat_amount, bank_account)
-        btc_tx = self.lightning_pay(btc_amount, bitcoin_address)  
+        fiat_payment = FiatPayment(fiat_amount, bank_account)
+        bitcoin_payment = BitcoinPayment(bitcoin_amount, bitcoin_address)
 
-        # Check both succeeded
-        if fiat_tx.succeeded and btc_tx.succeeded:
+        try:
+            fiat_payment.transfer()
+            bitcoin_payment.pay()
+            logging.info("Payment successful!")
             return True
-        
-        # Handle failures
-        self.handle_failed_payment(fiat_tx, btc_tx)
-        return False
+        except Exception as e:
+            logging.error(f"Payment failed: {e}")
+            return False
 
-    def fiat_transfer(self, amount, account):
-        print(f"Transferring {amount} via ACH") 
-        # Call ACH API
-        return FiatTransferResponse()
+    def refund(self):
+        # Placeholder for refunding the payment
+        logging.info("Refunding the payment...")
+        # Implement refund logic
 
-    def lightning_pay(self, amount, payee):
-        print(f"Paying {amount} satoshis via Lightning")
-        # Call LND API
-        return LightningPaymentResponse()
+    def split_evenly(self, num_recipients):
+        # Split the payment evenly among multiple recipients
+        logging.info(f"Splitting the payment evenly among {num_recipients} recipients")
+        # Implement logic to split payment evenly
 
-    def handle_failed_payment(self, fiat, btc):
-        # Refunds, retries, notifications
-        pass
+    def split_by_amount(self, amounts):
+        # Split the payment based on specified amounts for each recipient
+        logging.info("Splitting the payment by specified amounts")
+        # Implement logic to split payment by specified amounts
 
-# usage
+    def schedule_payment(self, scheduled_time):
+        # Schedule the payment to be executed at a later time
+        logging.info(f"Scheduling the payment for {scheduled_time}")
+        # Implement logic to schedule payment
 
-payment = SplitPayment(order_123, 199.99)
-payment.pay(bank_acct, ln_invoice, 60)
+    def cancel_payment(self):
+        # Cancel the scheduled payment
+        logging.info("Cancelling the scheduled payment")
+        # Implement logic to cancel scheduled payment
+
+    def retry_failed_payment(self):
+        # Retry the failed payment
+        logging.info("Retrying the failed payment")
+        # Implement logic to retry failed payment
+
+    def log_transaction(self):
+        # Log transaction details
+        logging.info("Logging transaction details")
+        # Implement logic to log transaction
+
+    def verify_payment_status(self):
+        # Verify the status of the payment
+        logging.info("Verifying payment status")
+        # Implement logic to verify payment status
+
+    def generate_payment_receipt(self):
+        # Generate a receipt for the payment
+        logging.info("Generating payment receipt")
+        # Implement logic to generate payment receipt
+
+    @staticmethod
+    def calculate_tax(amount, tax_rate):
+        # Calculate tax amount based on the given tax rate
+        return amount * (Decimal(tax_rate) / 100)
+
+    @staticmethod
+    def validate_bank_account(account):
+        # Validate the bank account details
+        # Placeholder for validation logic
+        return True
+
+    @staticmethod
+    def validate_bitcoin_address(address):
+        # Validate the Bitcoin address format
+        # Placeholder for validation logic
+        return True
+
+# Additional utility functions
+def format_amount(amount):
+    # Format the amount with currency symbol and decimal places
+    return f"${amount:.2f}"
+
+def validate_order_id(order_id):
+    # Validate the order ID format
+    # Placeholder for validation logic
+    return True
+
+def validate_percentage(percentage):
+    # Validate the percentage value (0-100)
+    # Placeholder for validation logic
+    return True
+
+def main():
+    logging.basicConfig(level=logging.INFO)
+
+    order_id = "123456"
+    total_amount = "199.99"
+    bank_account = "ACME Bank, Account #12345"
+    bitcoin_address = "1ABCxyz..."
+
+    split_payment = SplitPayment(order_id, total_amount)
+    split_payment.pay(fiat_percentage=60, bank_account=bank_account, bitcoin_address=bitcoin_address)
+
+    # Simulate a more complex payment scenario
+    recipients = [
+        {"name": "Recipient A", "percentage": 30},
+        {"name": "Recipient B", "percentage": 20},
+        {"name": "Recipient C", "percentage": 50}
+    ]
+
+    split_payment.split_by_amount(recipients)
+
+if __name__ == "__main__":
+    main()

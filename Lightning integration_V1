@@ -1,113 +1,100 @@
-# lightning.py
+# Coded by Emiliano German Solazzi Griminger
 
-import os
-import asyncio
-from cryptography import ECDSA
-from pubsub import PubSub
 from blockchain import BlockchainClient
-
-class LightningNode:
-
-    def __init__(self, blockchain: BlockchainClient):
-        self._node_id = os.urandom(32)  # Make node_id private
-        self._blockchain = blockchain
-        self._router = Router()
-        self._gossip = GossipProtocol()
-        self._peers = {}
-        self._channels = {}
-        self._pending_htlcs = {}
-
-    async def sync(self):
-        await self._sync_peers()
-        await self._sync_channels()
-        await self._sync_network()
-
-    async def _sync_peers(self):
-        # Discover peers and connect
-        pass
-
-    async def _sync_channels(self):
-        # Exchange channel updates
-        pass
-
-    async def _sync_network(self):
-        await self._gossip.propagate()
-        await self._watch_chain()
-
-    async def _watch_chain(self):
-        # Monitor blockchain for channel closes
-        pass
-
-    def make_payment(self, payment, callback):
-        route = self._router.find_route(payment.amount)
-        payment_hash = self._send_htlc(route, payment.htlc)
-
-        self._pending_htlcs[payment_hash] = (payment, callback)
-
-    def handle_htlc_settle(self, preimage):
-        payment = self._pending_htlcs.pop(preimage.payment_hash)
-        payment[1](True)  # Execute callback
-
-# lightningclient.py
-
-from lightning import LightningNode
 from wallet import Wallet
-from blockchain import BlockchainClient
+from lightning import LightningNode, LightningClient, LightningExplorer
+from visualization import NetworkGraph
 
-class LightningClient(LightningNode):
+class LightningNetworkSpecialist:
+    def __init__(self, blockchain: BlockchainClient):
+        self._blockchain = blockchain
+        self._wallet = Wallet(blockchain)
+        self._lightning_node = LightningNode(blockchain)
+        self._lightning_client = LightningClient(self._wallet, blockchain)
+        self._lightning_explorer = LightningExplorer(NetworkGraph())
 
-    def __init__(self, wallet: Wallet, blockchain: BlockchainClient):
-        self._wallet = wallet
-        super().__init__(blockchain)
+    def start(self):
+        """
+        Start the Lightning Network Specialist.
 
-    def pay_invoice(self, invoice):
-        payment = self._wallet.create_payment(invoice)
-        self.make_payment(payment, self._on_payment_complete)
+        This method initiates synchronization with the Lightning Network and starts the network explorer.
+        """
+        try:
+            self._lightning_node.sync()
+            self._lightning_explorer.web_ui()
+        except Exception as e:
+            print(f"Error starting Lightning Network Specialist: {e}")
+
+    def process_payment(self, payment_data):
+        """
+        Process a payment.
+
+        Args:
+            payment_data (dict): Data containing payment information.
+        """
+        try:
+            payment = self._wallet.create_payment(payment_data)
+            self._lightning_client.make_payment(payment, self._on_payment_complete)
+        except Exception as e:
+            print(f"Error processing payment: {e}")
 
     def _on_payment_complete(self, error):
+        """
+        Callback function to handle payment completion.
+
+        Args:
+            error (bool): Indicates whether the payment was successful or not.
+        """
         if error:
             print("Payment failed")
         else:
             print("Payment completed!")
 
-    def login(self, username, password):
-        self._wallet.unlock(username, password)
-
-# explorer.py
-
-from lightning import LightningNode
-from visualization import NetworkGraph
-
-class LightningExplorer(LightningNode):
-
-    def __init__(self, graph: NetworkGraph):
-        self._graph = graph
-        super().__init__()
-
-        self._subscribe_to_updates(self._update_graph)
-
-    def _update_graph(self, update):
-        self._graph.apply_update(update)
-
-    def web_ui(self):
-        return self._graph.render_d3_force()
-
-# faucet.py
-
-from lightningclient import LightningClient
-from wallet import Wallet
-
-class Faucet(LightningClient):
-
-    def __init__(self, wallet: Wallet, blockchain: BlockchainClient):
-        super().__init__(wallet, blockchain)
-
     def create_account(self, username):
-        account = self._wallet.create_account(username)
-        return account.seed
+        """
+        Create a new account.
+
+        Args:
+            username (str): Username for the new account.
+
+        Returns:
+            str: Seed for the newly created account.
+        """
+        try:
+            return self._lightning_client.create_account(username)
+        except Exception as e:
+            print(f"Error creating account: {e}")
 
     def fund_account(self, username, amount):
-        account = self._wallet.get_account(username)
-        address = account.get_address()
+        """
+        Fund an account.
 
-        self._blockchain.send_coins(address, amount)
+        Args:
+            username (str): Username of the account to fund.
+            amount (float): Amount to fund the account with.
+        """
+        try:
+            self._lightning_client.fund_account(username, amount)
+        except Exception as e:
+            print(f"Error funding account: {e}")
+
+    def sync_network(self):
+        """
+        Synchronize the Lightning Network.
+        """
+        try:
+            self._lightning_node.sync()
+        except Exception as e:
+            print(f"Error synchronizing Lightning Network: {e}")
+
+    def stop(self):
+        """
+        Stop the Lightning Network Specialist.
+
+        This method stops the network explorer and cleans up resources.
+        """
+        try:
+            # Perform any cleanup tasks here
+            pass
+        except Exception as e:
+            print(f"Error stopping Lightning Network Specialist: {e}")

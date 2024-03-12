@@ -3,52 +3,50 @@ import logging
 import os
 import requests
 
-# Placeholder for actual API URL and credentials
+# Constants
 API_URL = os.getenv('BITCOIN_PAYMENT_API_URL')
 API_KEY = os.getenv('BITCOIN_PAYMENT_API_KEY')
 
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 
 def process_bitcoin_payment(bitcoin_amount, bitcoin_address):
-    headers = {
-        'Authorization': f'Bearer {API_KEY}',
-        'Content-Type': 'application/json'
-    }
-    
-    payload = {
-        'amount': bitcoin_amount,
-        'address': bitcoin_address
-    }
-    
+    """
+    Process Bitcoin payment.
+
+    Args:
+        bitcoin_amount (float): Amount of Bitcoin to be paid.
+        bitcoin_address (str): Bitcoin address to which payment is to be made.
+
+    Returns:
+        dict: Dictionary indicating success/failure of the payment process.
+    """
+    headers = {'Authorization': f'Bearer {API_KEY}', 'Content-Type': 'application/json'}
+    payload = {'amount': bitcoin_amount, 'address': bitcoin_address}
+
     try:
-        # Placeholder for actual Bitcoin payment API call
         response = requests.post(f'{API_URL}/payments', json=payload, headers=headers)
         response_data = response.json()
         
-        if response.status_code == 200 and response_data['success']:
-            # Placeholder for a real confirmation check (e.g., user confirmation or automated confirmation logic)
-            confirmed = check_user_confirmation()  # This function needs to be implemented
-            
-            if confirmed:
-                # Placeholder for actual transaction status check
-                transaction_status = get_transaction_status(response_data['transaction_id'])  # This function needs to be implemented
-                
-                if transaction_status == 'confirmed':
-                    logging.info(f"Bitcoin payment successful. Transaction ID: {response_data['transaction_id']}")
-                    return {'success': True, 'transaction_id': response_data['transaction_id']}
-                elif transaction_status == 'pending':
-                    logging.warning("Bitcoin payment is pending. Please wait for confirmation.")
-                    return {'success': False, 'error': 'Bitcoin payment is pending'}
-                else:
-                    logging.error(f"Bitcoin payment failed. Transaction status: {transaction_status}")
-                    return {'success': False, 'error': 'Bitcoin payment failed'}
-            else:
-                logging.warning("User canceled the payment.")
-                return {'success': False, 'error': 'User canceled the payment'}
-        else:
+        if response.status_code != 200 or not response_data.get('success'):
             error_message = response_data.get('error', 'Unknown error')
             logging.error(f"Bitcoin payment failed. Error: {error_message}")
             return {'success': False, 'error': f"Bitcoin payment failed: {error_message}"}
+
+        if not check_user_confirmation():
+            logging.warning("User canceled the payment.")
+            return {'success': False, 'error': 'User canceled the payment'}
+
+        transaction_status = get_transaction_status(response_data['transaction_id'])
+        if transaction_status == 'confirmed':
+            logging.info(f"Bitcoin payment successful. Transaction ID: {response_data['transaction_id']}")
+            return {'success': True, 'transaction_id': response_data['transaction_id']}
+        elif transaction_status == 'pending':
+            logging.warning("Bitcoin payment is pending. Please wait for confirmation.")
+            return {'success': False, 'error': 'Bitcoin payment is pending'}
+        else:
+            logging.error(f"Bitcoin payment failed. Transaction status: {transaction_status}")
+            return {'success': False, 'error': 'Bitcoin payment failed'}
 
     except requests.exceptions.RequestException as e:
         logging.error(f"Network error during Bitcoin payment: {str(e)}")
@@ -57,12 +55,22 @@ def process_bitcoin_payment(bitcoin_amount, bitcoin_address):
         logging.error(f"An unexpected error occurred during Bitcoin payment: {str(e)}")
         return {'success': False, 'error': 'An unexpected error occurred during Bitcoin payment'}
 
-# Placeholder function for user confirmation logic
 def check_user_confirmation():
+    """
+    Placeholder function for user confirmation logic.
+    """
     # Implement actual confirmation logic here
     return True
 
-# Placeholder function for checking the transaction status
 def get_transaction_status(transaction_id):
+    """
+    Placeholder function for checking the transaction status.
+
+    Args:
+        transaction_id (str): Transaction ID.
+
+    Returns:
+        str: Status of the transaction.
+    """
     # Implement actual API call or logic to check transaction status here
     return 'confirmed'

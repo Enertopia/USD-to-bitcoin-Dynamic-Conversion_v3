@@ -1,7 +1,5 @@
 # Coded by Emiliano German Solazzi Griminger, 2023. Coinblend.
 
-# app.py
-
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
@@ -30,15 +28,19 @@ DEFAULT_COMPANY_BITCOIN_PERCENTAGE = 0.0035  # 0.35%
 
 @app.route('/convert', methods=['POST'])
 def convert():
+    """
+    Endpoint to handle currency conversion requests.
+    Expects JSON payload with 'amount' and optional 'merchant_percentage'.
+    """
     try:
         data = request.get_json()
-        amount = float(data['amount'])
+        amount = float(data.get('amount'))
 
         # Adjustable percentage for the merchant with a default of 5%
         merchant_percentage = float(data.get('merchant_percentage', DEFAULT_MERCHANT_PERCENTAGE))
 
         # Conversion logic
-        converted = amount * CONVERSION_RATE
+        converted = amount * get_conversion_rate()
 
         # Get fees
         exchange_fee, affiliate_fee = get_fees(amount)
@@ -63,12 +65,25 @@ def convert():
     except Exception as e:
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
+def get_conversion_rate():
+    """
+    Placeholder function to retrieve the conversion rate from an external source or database.
+    """
+    # Implement actual conversion rate retrieval logic here
+    return 1.5  # Placeholder value
+
 def get_fees(amount):
+    """
+    Calculate exchange and affiliate fees based on a fixed percentage of the conversion amount.
+    """
     exchange_fee = amount * 0.01
     affiliate_fee = amount * 0.005
     return exchange_fee, affiliate_fee
 
 def distribute(converted, exchange_fee, affiliate_fee, merchant_percentage):
+    """
+    Distribute the converted amount between the company and merchant.
+    """
     # Retrieve or create company wallet record
     company_wallet = CompanyWallet.query.first()
     if not company_wallet:

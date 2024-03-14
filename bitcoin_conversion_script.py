@@ -1,100 +1,87 @@
-# Coded by Emiliano Solazzi Griminger 2023. Coinblend
+# Coded by Emiliano Solazzi Griminger, 2023. Coinblend
+# Enhancements include real-time conversion rates, a GUI, database support for history and preferences, and advanced logging.
 
 import logging
+import requests
+import tkinter as tk
+from tkinter import ttk, messagebox
+import sqlite3
+from datetime import datetime
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(filename='conversion_app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Constants
-CONVERSION_RATE = 0.000020  # Conversion rate: 1 fiat = 0.000020 BTC
-MERCHANT_PRESETS = {1: 0.10, 2: 0.15, 3: 0.25, 4: 0.50, 5: 0.75, 6: 0.80}  # Preset conversion percentages
+# Initialize database
+def initialize_db():
+    conn = sqlite3.connect('conversion_history.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS history
+                 (date TEXT, fiat_amount REAL, conversion_percentage REAL, bitcoin_amount REAL)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS preferences
+                 (key TEXT PRIMARY KEY, value TEXT)''')
+    conn.commit()
+    conn.close()
 
-def simulate_server_conversion(amount_fiat, conversion_rate=CONVERSION_RATE):
-    """
-    Simulates the server-side conversion of fiat to Bitcoin.
-
-    :param amount_fiat: The amount of fiat currency to convert.
-    :param conversion_rate: The conversion rate for the specific transaction.
-    :return: A dictionary with the conversion result.
-    """
-    bitcoin_amount = amount_fiat * conversion_rate
-    return {
-        'amount_fiat': amount_fiat,
-        'bitcoin_amount': bitcoin_amount,
-        'conversion_rate': conversion_rate
-    }
-
-def convert_to_bitcoin(amount_fiat, conversion_percentage):
-    """
-    Converts fiat currency to Bitcoin based on the merchant's conversion percentage.
-
-    :param amount_fiat: The total amount of fiat currency.
-    :param conversion_percentage: The merchant's chosen conversion percentage.
-    """
+# Fetch real-time conversion rate from an external API
+def get_real_time_conversion_rate():
     try:
-        # Calculate the amount to be converted and the amount to keep in the bank account
-        amount_to_convert = amount_fiat * conversion_percentage
-        amount_to_keep = amount_fiat - amount_to_convert
+        response = requests.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+        data = response.json()
+        return data['bitcoin']['usd']
+    except requests.RequestException as e:
+        logging.error(f"Error fetching conversion rate: {e}")
+        messagebox.showerror("Error", "Failed to fetch conversion rate. Check your internet connection.")
+        return None
 
-        # Simulate server response for the conversion
-        conversion_result = simulate_server_conversion(amount_to_convert)
+# Save conversion to database
+def save_conversion(fiat_amount, conversion_percentage, bitcoin_amount):
+    conn = sqlite3.connect('conversion_history.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO history VALUES (?, ?, ?, ?)", (datetime.now().isoformat(), fiat_amount, conversion_percentage, bitcoin_amount))
+    conn.commit()
+    conn.close()
 
-        # Log conversion details
-        logging.info(f"Total Fiat Amount: {amount_fiat}")
-        logging.info(f"Amount to Bank Account: {amount_to_keep:.2f}")
-        logging.info(f"Amount Converted to Bitcoin: {conversion_result['bitcoin_amount']:.8f} BTC")
-        logging.info(f"Conversion Rate: {conversion_result['conversion_rate']} BTC per fiat unit")
+# Perform conversion and log the results
+def convert_and_log(amount_fiat, conversion_percentage):
+    conversion_rate = get_real_time_conversion_rate()
+    if conversion_rate is not None:
+        bitcoin_amount = (amount_fiat * conversion_percentage) / conversion_rate
+        save_conversion(amount_fiat, conversion_percentage, bitcoin_amount)
+        logging.info(f"Conversion successful: {amount_fiat} fiat to {bitcoin_amount:.8f} BTC")
+        return bitcoin_amount
+    else:
+        return None
 
-    except Exception as e:
-        logging.error(f"An error occurred during conversion: {e}")
+# GUI for application
+def create_gui():
+    window = tk.Tk()
+    window.title("Fiat to Bitcoin Converter")
 
-def set_merchant_percentage():
-    """
-    Allows the merchant to set a conversion percentage from the preset options.
+    ttk.Label(window, text="Amount in Fiat:").grid(column=0, row=0, sticky=tk.W)
+    amount_entry = ttk.Entry(window)
+    amount_entry.grid(column=1, row=0, sticky=tk.EW)
 
-    :return: The chosen conversion percentage.
-    """
-    logging.info("Merchant Settings: Choose a preset conversion percentage:")
-    for option, percentage in MERCHANT_PRESETS.items():
-        logging.info(f"{option}. {percentage * 100}%")
+    ttk.Label(window, text="Conversion Percentage:").grid(column=0, row=1, sticky=tk.W)
+    percentage_entry = ttk.Entry(window)
+    percentage_entry.grid(column=1, row=1, sticky=tk.EW)
 
-    while True:
-        choice = input("Enter the number corresponding to your choice: ")
-        if choice.isdigit() and int(choice) in MERCHANT_PRESETS:
-            return MERCHANT_PRESETS[int(choice)]
-        else:
-            logging.error("Invalid choice. Please enter a number corresponding to the options.")
-
-def get_float_input(prompt):
-    """
-    Safely obtains a float input from the user.
-
-    :param prompt: The prompt to display to the user.
-    :return: The user input as a float.
-    """
-    while True:
+    def on_convert():
         try:
-            return float(input(prompt))
-        except ValueError:
-            logging.error("Please enter a valid number.")
+            amount_fiat = float(amount_entry.get())
+            conversion_percentage = float(percentage_entry.get()) / 100.0
+            bitcoin_amount = convert_and_log(amount_fiat, conversion_percentage)
+            if bitcoin_amount is not None:
+                messagebox.showinfo("Conversion Result", f"Bitcoin Amount: {bitcoin_amount:.8f} BTC")
+            else:
+                messagebox.showerror("Error", "Conversion failed. Please try again later.")
+        except ValueError as e:
+            logging.error(f"Input error: {e}")
+            messagebox.showerror("Error", "Invalid input. Please enter valid numbers.")
 
-def main():
-    logging.info("Starting the fiat to Bitcoin conversion client.")
+    ttk.Button(window, text="Convert", command=on_convert).grid(column=1, row=2, sticky=tk.W)
 
-    try:
-        # Set the initial conversion percentage
-        merchant_conversion_percentage = set_merchant_percentage()
-
-        # Get the total fiat amount from the user
-        fiat_amount = get_float_input("Enter the total fiat amount: ")
-
-        # Convert to Bitcoin based on the chosen percentage
-        convert_to_bitcoin(fiat_amount, merchant_conversion_percentage)
-
-    except KeyboardInterrupt:
-        logging.info("Conversion process interrupted by the user.")
-    except Exception as e:
-        logging.error(f"An unexpected error occurred: {e}")
+    window.mainloop()
 
 if __name__ == '__main__':
-    main()
+    initialize_db()
+    create_gui()
